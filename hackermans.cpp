@@ -187,7 +187,7 @@ public:
 
     void compute_speeds(User** users, int num_users, float* speed_matrix)
     {
-        for (int i = 0; i < num_users * n; i++)
+        for (int i = 0; i < m * n; i++)
             speed_matrix[i] = 0.0;
 
         for (int col = 0; col < n; col++)
@@ -224,7 +224,6 @@ public:
         for (int i = 0; i < num_users; i++)
             scores[i]->speed /= std::max(1, tally[i]);
     }
-
 
     int* copy_ids()
     {
@@ -501,8 +500,8 @@ void test()
     assert(c_ids[5] == 2);
     assert(c_ids[6] == 3);
 
-    delete speed_matrix;
-    delete speed_map;
+    delete [] speed_matrix;
+    delete [] speed_map;
     delete c_ids;
     for (int i = 0; i < num_users; i++)
     {
