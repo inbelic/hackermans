@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+# zipped files
+*.zip
+
+# solution output
+solns/
+
+#exec
+hackermans
