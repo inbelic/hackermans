@@ -466,6 +466,8 @@ void fill(User** users, int num_users, Grid& grid,
             float* speed_matrix, int* speed_map);
 void trim(User** users, int num_users, Grid& grid,
             float* speed_matrix, int* speed_map);
+void swap(User** users, int num_users, Grid& grid,
+            float* speed_matrix, int* speed_map);
 
 bool feasible(User** users, Score** scores, int num_users)
 {
@@ -516,17 +518,18 @@ int main(int argc, char** args)
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int max_recur = 10;
+    int max_recur = 20;
     do
     {
-        trim(users, num_users, grid, speed_matrix, speed_map);
         fill(users, num_users, grid, speed_matrix, speed_map);
         grid.compute_speeds(users, num_users, speed_matrix);
         grid.mk_scores(scores, num_users, speed_matrix, speed_map);
-            break;
+        if (feasible(users, scores, num_users)) break;
 
+        swap(users, num_users, grid, speed_matrix, speed_map);
+        trim(users, num_users, grid, speed_matrix, speed_map);
         max_recur--;
-    } while (max_recur > 0 && !feasible(users, scores, num_users));
+    } while (max_recur > 0);
 
     grid.show();
     show_scores(users, scores, num_users, alpha);
@@ -606,6 +609,33 @@ void fill(User** users, int num_users, Grid& grid,
     }
 }
 
+void trim(User** users, int num_users, Grid& grid,
+            float* speed_matrix, int* speed_map)
+{
+    Score* scores [num_users];
+    for (int i = 0; i < num_users; i++)
+        scores[i] = new Score;
+
+    grid.compute_speeds(users, num_users, speed_matrix);
+    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+
+    int col, data;
+    float avg_speed;
+    for (int usr = 0; usr < num_users; usr++)
+    {
+        data = users[usr]->data;
+        avg_speed = scores[usr]->speed;
+        while (data > scores[usr]->data)
+        {
+            col = grid.worst(usr + 1);
+            if (col != -1)
+                grid.remove_user(usr + 1, col);
+            else break;
+            data -= speed_map[flr(avg_speed)];
+        }
+    }
+}
+
 int get_most_excess(int* used, int* data, int num_users)
 {
     int most_excess = 0;
@@ -623,25 +653,32 @@ int get_most_excess(int* used, int* data, int num_users)
     return user_idx;
 }
 
-void trim(User** users, int num_users, Grid& grid,
+void swap(User** users, int num_users, Grid& grid,
             float* speed_matrix, int* speed_map)
 {
     Score* scores [num_users];
+    int used[num_users];
+    int data[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
     grid.compute_speeds(users, num_users, speed_matrix);
     grid.mk_scores(scores, num_users, speed_matrix, speed_map);
 
-    int col;
-    for (int usr = 0; usr < num_users; usr++)
+    for (int i = 0; i < num_users; i++)
     {
-        if (users[usr]->data < scores[usr]->data)
-        {
-            col = grid.worst(usr + 1);
-            if (col != -1)
-                grid.remove_user(usr + 1, col);
-        }
+        used[i] = 0;
+        data[i] = users[i]->data - scores[i]->data;
+    }
+
+    int user_id_e, user_id_l;
+    while (true)
+    {
+        user_id_e = get_most_excess(used, data, num_users);
+        user_id_l = get_most_data(used, data, num_users);
+        if (user_id_e == -1 || user_id_l == -1)
+            break;
+        grid.swap(user_id_e, user_id_l);
     }
 }
 
