@@ -51,26 +51,6 @@ private:
         return cur;
     }
 
-    int remove_user(int user_id, int col)
-    {
-        int start = col * m;
-        int cur = 0;
-        while (ids[start + cur] != user_id && cur < m)
-            cur++;
-        
-        if (cur == m)
-            return -1;
-
-        int rem = m - cur - 1;
-        //we then shift all values after
-        for (int i = 0; i < rem; i++)
-        {
-            ids[start + cur + i] = ids[start + cur + i + 1];
-        }
-        ids[start + cur + rem] = 0;
-        return start + cur;
-    }
-
     int excluded(int user_id, int col)
     {
         int start = col * m;
@@ -195,6 +175,26 @@ public:
     {
         int row = get_top(col);
         return place_user(0, col, row - 1);
+    }
+
+    int remove_user(int user_id, int col)
+    {
+        int start = col * m;
+        int cur = 0;
+        while (ids[start + cur] != user_id && cur < m)
+            cur++;
+        
+        if (cur == m)
+            return -1;
+
+        int rem = m - cur - 1;
+        //we then shift all values after
+        for (int i = 0; i < rem; i++)
+        {
+            ids[start + cur + i] = ids[start + cur + i + 1];
+        }
+        ids[start + cur + rem] = 0;
+        return start + cur;
     }
 
     int swap(int user_id_e, int user_id_l)
@@ -324,6 +324,24 @@ public:
             std::cout << std::endl;
         }
     }
+
+    int worst(int user_id)
+    {
+        // get column with the most users or -1 if none
+        int score = 0;
+        int col = -1;
+        int count;
+        for (int i = 0; i < n; i++)
+        {
+            count = length(user_id, i);
+            if (count > score)
+            {
+                score = count;
+                col = i;
+            }
+        }
+        return col;
+    }
 };
 
 // We then define functions for loading inputs from files
@@ -367,7 +385,7 @@ void load_users(User** users, int num_users, const char* fname)
     User* user;
     for (int i = 0; i < num_users; i++)
     {
-#ifdef TESTING
+#if TESTING
         std::cout << "User " << i << ": ";
 #endif
         user = users[i];
@@ -376,13 +394,13 @@ void load_users(User** users, int num_users, const char* fname)
         fs >> cur;      // user speed
         fs.get();
         user->speed = (float) cur;
-#ifdef TESTING
+#if TESTING
         std::cout << user->speed << ", ";
 #endif
         fs >> cur;      // user data
         fs.get();
         user->data = cur;
-#ifdef TESTING
+#if TESTING
         std::cout << user->data << std::endl;
 #endif
         fs >> cur;      // user factor
@@ -446,6 +464,19 @@ void show_scores(User** users, Score** scores, int num_users, int alpha)
 void test();
 void fill(User** users, int num_users, Grid& grid,
             float* speed_matrix, int* speed_map);
+void trim(User** users, int num_users, Grid& grid,
+            float* speed_matrix, int* speed_map);
+
+bool feasible(User** users, Score** scores, int num_users)
+{
+    float penalty = 0.0;
+    for (int i = 0; i < num_users; i++)
+    {
+        penalty += std::max((float) 0.0,
+                            (float) users[i]->data - scores[i]->data);
+    }
+    return penalty == 0;
+}
 
 int main(int argc, char** args)
 {
@@ -481,14 +512,22 @@ int main(int argc, char** args)
     int* speed_map = new int[map_size];
     load_speed2bw("toy_example/speed_to_map.csv", speed_map, map_size);
 
-    fill(users, num_users, grid, speed_matrix, speed_map);
-
     Score* scores [num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    int max_recur = 10;
+    do
+    {
+        trim(users, num_users, grid, speed_matrix, speed_map);
+        fill(users, num_users, grid, speed_matrix, speed_map);
+        grid.compute_speeds(users, num_users, speed_matrix);
+        grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+            break;
+
+        max_recur--;
+    } while (max_recur > 0 && !feasible(users, scores, num_users));
+
     grid.show();
     show_scores(users, scores, num_users, alpha);
 
@@ -564,6 +603,45 @@ void fill(User** users, int num_users, Grid& grid,
         // if nxt_user is -1 then we decreased at the last step and revoke it
         if (nxt_user != -1)
             grid.pop(col);
+    }
+}
+
+int get_most_excess(int* used, int* data, int num_users)
+{
+    int most_excess = 0;
+    int user_idx = -1;
+    for (int i = 0; i < num_users; i++)
+    {
+        if (used[i] == 0 && (data[i] < most_excess))
+        {
+            most_excess = data[i];
+            user_idx = i;
+        }
+    }
+    if (user_idx != -1)
+        used[user_idx] = 1;
+    return user_idx;
+}
+
+void trim(User** users, int num_users, Grid& grid,
+            float* speed_matrix, int* speed_map)
+{
+    Score* scores [num_users];
+    for (int i = 0; i < num_users; i++)
+        scores[i] = new Score;
+
+    grid.compute_speeds(users, num_users, speed_matrix);
+    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+
+    int col;
+    for (int usr = 0; usr < num_users; usr++)
+    {
+        if (users[usr]->data < scores[usr]->data)
+        {
+            col = grid.worst(usr + 1);
+            if (col != -1)
+                grid.remove_user(usr + 1, col);
+        }
     }
 }
 
