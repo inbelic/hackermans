@@ -518,18 +518,19 @@ int main(int argc, char** args)
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int max_recur = 20;
-    do
+    int max_recur = 5;
+    while (true)
     {
         fill(users, num_users, grid, speed_matrix, speed_map);
         grid.compute_speeds(users, num_users, speed_matrix);
         grid.mk_scores(scores, num_users, speed_matrix, speed_map);
         if (feasible(users, scores, num_users)) break;
+        max_recur--;
+        if (max_recur < 0) break;
 
         swap(users, num_users, grid, speed_matrix, speed_map);
         trim(users, num_users, grid, speed_matrix, speed_map);
-        max_recur--;
-    } while (max_recur > 0);
+    }
 
     grid.show();
     show_scores(users, scores, num_users, alpha);
@@ -584,12 +585,13 @@ void fill(User** users, int num_users, Grid& grid,
         row = grid.get_used(used, col);
         grid.speed_col(users, speed_matrix, col);
         cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
-        do
+        for (int i = 0; i < num_users; i++)
         {
             prev = cur;
             // the column is full
             if (row == m)
                 break;
+            row++;
 
             // determine next user (or lack thereof)
             nxt_user = get_most_data(used, data, num_users);
@@ -601,11 +603,12 @@ void fill(User** users, int num_users, Grid& grid,
             // update speeds
             grid.speed_col(users, speed_matrix, col);
             cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
-            row++;
-        } while (prev < cur);
-        // if nxt_user is -1 then we decreased at the last step and revoke it
-        if (nxt_user != -1)
-            grid.pop(col);
+            if (cur < prev)
+            {
+                cur = prev;
+                grid.pop(col);
+            }
+        }
     }
 }
 
@@ -672,6 +675,7 @@ void swap(User** users, int num_users, Grid& grid,
     }
 
     int user_id_e, user_id_l;
+
     while (true)
     {
         user_id_e = get_most_excess(used, data, num_users);
