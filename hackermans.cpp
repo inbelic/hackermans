@@ -4,6 +4,7 @@
 #include <iomanip>
 
 #define TESTING 0
+#define PRINT_EXCESS 1
 
 // We first define our two data structures Grid and User
 typedef struct User
@@ -237,6 +238,8 @@ public:
         return 0;
     }
 
+    
+
     void speed_col(User** users, double* speed_matrix, int col)
     {
         int start = col * m;
@@ -463,16 +466,22 @@ void show_scores(User** users, Score** scores, int num_users, int alpha)
         max_speed += users[i]->speed * users[i]->weight;
         max_data += users[i]->data;
         objective += scores[i]->speed * users[i]->weight;
-        penalty += std::max((double) 0.0,
-                            (double) users[i]->data - scores[i]->data);
+#if PRINT_EXCESS
+        penalty += (double) users[i]->data - scores[i]->data;
+#else
+        penalty += std::max((double) 0.0, (double) users[i]->data - scores[i]->data);
+#endif
     }
 
     objective /= max_speed;
     penalty /= (double) max_data;
     for (int i = 0; i < num_users; i++)
     {
-        pen = std::max((double) 0.0,
-                       (double) users[i]->data - scores[i]->data);
+#if PRINT_EXCESS
+        pen = (double) users[i]->data - scores[i]->data;
+#else
+        pen = std::max((double) 0.0, (double) users[i]->data - scores[i]->data);
+#endif
         std::cout << pen << ",";
     }
     std::cout << penalty << std::endl;
