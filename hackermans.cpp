@@ -542,10 +542,11 @@ int main(int argc, char** args)
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int max_recur = 5;
+    int max_recur = 1;
     while (true)
     {
         fill(users, num_users, grid, speed_matrix, speed_map);
+        trim(users, num_users, grid, speed_matrix, speed_map);
         grid.compute_speeds(users, num_users, speed_matrix);
         grid.mk_scores(scores, num_users, speed_matrix, speed_map);
         if (feasible(users, scores, num_users)) break;
@@ -553,7 +554,6 @@ int main(int argc, char** args)
         if (max_recur < 0) break;
 
         swap(users, num_users, grid, speed_matrix, speed_map);
-        trim(users, num_users, grid, speed_matrix, speed_map);
     }
 
     grid.show();
@@ -650,16 +650,19 @@ void trim(User** users, int num_users, Grid& grid,
     double avg_speed;
     for (int usr = 0; usr < num_users; usr++)
     {
-        data = users[usr]->data;
+        col = -1;
+        data = users[usr]->data - scores[usr]->data;
         avg_speed = scores[usr]->speed;
-        while (data > scores[usr]->data)
+        while (data < 0)
         {
             col = grid.worst(usr + 1);
             if (col != -1)
                 grid.remove_user(usr + 1, col);
             else break;
-            data -= speed_map[flr(avg_speed)];
+            data += speed_map[flr(avg_speed)];
         }
+        if (col != -1)
+            grid.push(usr + 1, col);
     }
 }
 
