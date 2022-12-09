@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <assert.h>
+#include <iomanip>
 
 #define TESTING 0
 
@@ -15,11 +16,11 @@ typedef struct User
 
 typedef struct Score
 {
-    float speed;
+    double speed;
     int data;
 } Score;
 
-int flr(float speed)
+int flr(double speed)
 {
     return (speed + 1e-6);
 }
@@ -149,7 +150,7 @@ public:
         return cur;
     }
 
-    int comp_col_data(int* data, float* speed_matrix, int col, int* speed_map)
+    int comp_col_data(int* data, double* speed_matrix, int col, int* speed_map)
     {
         int ttl_data = 0;
         int start = col * m;
@@ -159,8 +160,8 @@ public:
             id = ids[start + i] - 1;
             if (id == -1)   // reached empty spot
                 return ttl_data;
-            cur = std::min((float) data[id],
-                           (float) speed_map[flr(speed_matrix[start + i])]);
+            cur = std::min((double) data[id],
+                           (double) speed_map[flr(speed_matrix[start + i])]);
             ttl_data += cur;
         }
         return ttl_data;
@@ -222,7 +223,7 @@ public:
         return ret;
     }
 
-    void speed_col(User** users, float* speed_matrix, int col)
+    void speed_col(User** users, double* speed_matrix, int col)
     {
         int start = col * m;
         int* cur_col = ids + start;
@@ -231,7 +232,7 @@ public:
 
         int row, id;
         int total_factor = 0;
-        float dep;
+        double dep;
         for (row = 0; row < m; row++)
         {
             id = cur_col[row];
@@ -246,20 +247,20 @@ public:
             if (id == 0)
                 break;
             int factor = users[id - 1]->factor;
-            dep = (factor * (total_factor - factor)) / 10000.0;
-            speed_matrix[start + row] = std::max((float) 0.0,
-                                                 (float) users[id - 1]->speed * (1 - dep));
+            dep = ((double) (factor * (total_factor - factor))) / 10000.0;
+            speed_matrix[start + row] = std::max((double) 0.0,
+                                                 (double) users[id - 1]->speed * (1 - dep));
         }
     }
 
-    void compute_speeds(User** users, int num_users, float* speed_matrix)
+    void compute_speeds(User** users, int num_users, double* speed_matrix)
     {
         for (int col = 0; col < n; col++)
             speed_col(users, speed_matrix, col);
     }
 
     // generally called after compute_speeds
-    void mk_scores(Score** scores, int num_users, float* speed_matrix,
+    void mk_scores(Score** scores, int num_users, double* speed_matrix,
                     int* speed_map)
     {
         int tally[num_users];
@@ -270,7 +271,7 @@ public:
             tally[i] = 0;
         }
 
-        float speed;
+        double speed;
         int id;
         for (int col = 0; col < n; col++)
             for (int row = 0; row < m; row++)
@@ -393,7 +394,7 @@ void load_users(User** users, int num_users, const char* fname)
         fs.get();
         fs >> cur;      // user speed
         fs.get();
-        user->speed = (float) cur;
+        user->speed = (double) cur;
 #if TESTING
         std::cout << user->speed << ", ";
 #endif
@@ -440,31 +441,31 @@ void show_scores(User** users, Score** scores, int num_users, int alpha)
 {
     int max_speed = 0;
     int max_data = 0;
-    float objective = 0.0;
-    float penalty = 0.0;
+    double objective = 0.0;
+    double penalty = 0.0;
     int pen;
     for (int i = 0; i < num_users; i++)
     {
         max_speed += users[i]->speed * users[i]->weight;
         max_data += users[i]->data;
         objective += scores[i]->speed * users[i]->weight;
-        penalty += std::max((float) 0.0,
-                            (float) users[i]->data - scores[i]->data);
+        penalty += std::max((double) 0.0,
+                            (double) users[i]->data - scores[i]->data);
     }
 
     objective /= max_speed;
-    penalty /= (float) max_data;
+    penalty /= (double) max_data;
     for (int i = 0; i < num_users; i++)
     {
-        pen = std::max((float) 0.0,
-                       (float) users[i]->data - scores[i]->data);
+        pen = std::max((double) 0.0,
+                       (double) users[i]->data - scores[i]->data);
         std::cout << pen << ",";
     }
     std::cout << penalty << std::endl;
 
     for (int i = 0; i < num_users; i++)
     {
-        std::cout << scores[i]->speed << ",";
+        std::cout << std::setprecision(10) << scores[i]->speed << ",";
     }
     std::cout << objective << std::endl;
     std::cout << objective - alpha * penalty << std::endl;
@@ -472,19 +473,19 @@ void show_scores(User** users, Score** scores, int num_users, int alpha)
 
 void test();
 void fill(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map);
+            double* speed_matrix, int* speed_map);
 void trim(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map);
+            double* speed_matrix, int* speed_map);
 void swap(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map);
+            double* speed_matrix, int* speed_map);
 
 bool feasible(User** users, Score** scores, int num_users)
 {
-    float penalty = 0.0;
+    double penalty = 0.0;
     for (int i = 0; i < num_users; i++)
     {
-        penalty += std::max((float) 0.0,
-                            (float) users[i]->data - scores[i]->data);
+        penalty += std::max((double) 0.0,
+                            (double) users[i]->data - scores[i]->data);
     }
     return penalty == 0;
 }
@@ -509,7 +510,7 @@ int main(int argc, char** args)
     int num_users = header[2];
     int alpha = header[3];
     int s = n * m;
-    float* speed_matrix = new float[s];
+    double* speed_matrix = new double[s];
 
     User* users[num_users];
     for (int i = 0; i < num_users; i++)
@@ -570,11 +571,11 @@ int get_most_data(int* used, int* data, int num_users)
 }
 
 void fill(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map)
+            double* speed_matrix, int* speed_map)
 {
     int m = grid.get_m();
     int n = grid.get_n();
-    float cur, prev;
+    double cur, prev;
     int nxt_user, row;
     int used[num_users];
     int data[num_users];
@@ -622,7 +623,7 @@ void fill(User** users, int num_users, Grid& grid,
 }
 
 void trim(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map)
+            double* speed_matrix, int* speed_map)
 {
     Score* scores [num_users];
     for (int i = 0; i < num_users; i++)
@@ -632,7 +633,7 @@ void trim(User** users, int num_users, Grid& grid,
     grid.mk_scores(scores, num_users, speed_matrix, speed_map);
 
     int col, data;
-    float avg_speed;
+    double avg_speed;
     for (int usr = 0; usr < num_users; usr++)
     {
         data = users[usr]->data;
@@ -666,7 +667,7 @@ int get_most_excess(int* used, int* data, int num_users)
 }
 
 void swap(User** users, int num_users, Grid& grid,
-            float* speed_matrix, int* speed_map)
+            double* speed_matrix, int* speed_map)
 {
     Score* scores [num_users];
     int used[num_users];
@@ -768,7 +769,7 @@ void test()
     for (int i = 0; i < map_size; i++)
         assert(speed_map[i] == t_sm[i]);
 
-    float* speed_matrix = new float[s];
+    double* speed_matrix = new double[s];
     grid.compute_speeds(users, num_users, speed_matrix);
     grid.mk_scores(scores, num_users, speed_matrix, speed_map);
     grid.show();
