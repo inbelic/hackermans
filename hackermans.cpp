@@ -519,7 +519,7 @@ int main(int argc, char** args)
     
     Grid grid = Grid(header);
 
-    int map_size = 27;
+    const int map_size = 27;
     int* speed_map = new int[map_size];
     load_speed2bw("toy_example/speed_to_map.csv", speed_map, map_size);
 
@@ -753,7 +753,7 @@ void test()
     for (int i = 0; i < 15; i++)
         assert(t_ids[i] == c_ids[i]);
 
-    int map_size = 27;
+    const int map_size = 27;
     int t_sm[map_size]
         = {0,290,575,813,1082,1351,1620,1889,2158,2427,2696
           ,2965,3234,3503,3772,4041,4310,4579,4848,5117,5386
