@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall
+CFLAGS=-Wall -O3
 SRC=hackermans.cpp
 EXE=hackermans
 
