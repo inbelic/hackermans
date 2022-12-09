@@ -199,6 +199,32 @@ public:
         return start + cur;
     }
 
+    int find_user_in_col(int user_id, int col) {
+        int start = col * m;
+        int cur = 0;
+        while (ids[start + cur] != user_id && cur < m)
+            cur++;
+
+        if(cur == m)
+            return -1;
+
+        return start + cur;
+    }
+
+    // Swap user1 in col1 with user2 in col2
+    int swap_user(int user1, int user2, int col1, int col2) {
+        int uid1 = find_user_in_col(user1, col1);
+        int uid2 = find_user_in_col(user2, col2);
+
+        if(uid1 == -1 || uid2 == -1)
+            return -1;
+
+        ids[uid1] = user2;
+        ids[uid2] = user1;
+
+        return uid1; // what to return here?
+    }
+
     int swap(int user_id_e, int user_id_l)
     {
         // swap the user_id_e with excess from its best col with user_id_l worst 
@@ -207,20 +233,8 @@ public:
         if (best_col == -1 || worst_col == -1)
             return -1;
         
-        int ret;
-        ret = remove_user(user_id_e, best_col);
-        if (ret == -1)
-            return -1;
-        ret = remove_user(user_id_l, worst_col);
-        if (ret == -1)
-        {
-            // recover old state
-            push(user_id_e, best_col);
-            return -1;
-        }
-        ret = push(user_id_e, worst_col);
-        ret = push(user_id_l, best_col);
-        return ret;
+        swap_user(user_id_e, user_id_l, best_col, worst_col);
+        return 0;
     }
 
     void speed_col(User** users, double* speed_matrix, int col)
