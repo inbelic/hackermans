@@ -544,7 +544,7 @@ int main(int argc, char** args)
     grid.show();
     show_scores(users, scores, num_users, alpha);
 
-    std::cout << clock() - start << std::endl;
+    std::cout << (int) (1000 * ((double) clock() - start) / CLOCKS_PER_SEC) << std::endl;
 
     for (int i = 0; i < num_users; i++)
         delete users[i];
