@@ -12,7 +12,10 @@ test: $(EXE)
 	./$< toy_example/toy_testcase.csv
 
 valg: $(EXE) build 
-	valgrind ./$< toy_example/toy_testcase.csv
+	valgrind ./$< toy_example/old_toy_testcase.csv
+
+oldsubmit: build
+	./oldrun.sh
 
 submit: build
 	./run.sh

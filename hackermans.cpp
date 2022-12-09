@@ -10,6 +10,7 @@ typedef struct User
     int speed;
     int data;
     int factor;
+    int weight;
 } User;
 
 typedef struct Score
@@ -257,7 +258,6 @@ public:
             speed_col(users, speed_matrix, col);
     }
 
-
     // generally called after compute_speeds
     void mk_scores(Score** scores, int num_users, float* speed_matrix,
                     int* speed_map)
@@ -401,11 +401,20 @@ void load_users(User** users, int num_users, const char* fname)
         fs.get();
         user->data = cur;
 #if TESTING
-        std::cout << user->data << std::endl;
+        std::cout << user->data << ", ";
 #endif
         fs >> cur;      // user factor
         fs.get();
         user->factor = cur;
+#if TESTING
+        std::cout << user->factor << ", ";
+#endif
+        fs >> cur;      // user factor
+        fs.get();
+        user->weight = cur;
+#if TESTING
+        std::cout << user->weight << std::endl;
+#endif
     }
     fs.close();
 }
@@ -436,9 +445,9 @@ void show_scores(User** users, Score** scores, int num_users, int alpha)
     int pen;
     for (int i = 0; i < num_users; i++)
     {
-        max_speed += users[i]->speed;
+        max_speed += users[i]->speed * users[i]->weight;
         max_data += users[i]->data;
-        objective += scores[i]->speed;
+        objective += scores[i]->speed * users[i]->weight;
         penalty += std::max((float) 0.0,
                             (float) users[i]->data - scores[i]->data);
     }
@@ -710,31 +719,36 @@ void test()
     assert(users[0]->speed  ==   20);
     assert(users[0]->data   == 4000);
     assert(users[0]->factor ==   30);
+    assert(users[0]->weight ==    1);
 
     assert(users[1]->speed ==    15);
     assert(users[1]->data ==   8000);
     assert(users[1]->factor ==   25);
+    assert(users[1]->weight ==    1);
 
     assert(users[2]->speed ==    26);
     assert(users[2]->data ==   8200);
     assert(users[2]->factor ==   60);
+    assert(users[2]->weight ==    2);
 
     assert(users[3]->speed ==    20);
     assert(users[3]->data ==  18000);
     assert(users[3]->factor ==   40);
+    assert(users[3]->weight ==    3);
 
     Grid grid = Grid(header);
-    grid.push(4, 0);
     grid.push(3, 0);
-    grid.push(4, 1);
+    grid.push(4, 0);
+    grid.push(1, 1);
     grid.push(2, 1);
+    grid.push(4, 1);
     grid.push(3, 2);
-    grid.push(1, 2);
-    grid.push(4, 3);
+    grid.push(4, 2);
     grid.push(2, 3);
-    grid.push(4, 4);
+    grid.push(4, 3);
     grid.push(2, 4);
-    int t_ids[15] = {4,4,3,4,4,3,2,1,2,2,0,0,0,0,0};
+    grid.push(4, 4);
+    int t_ids[15] = {3,1,3,2,2,4,2,4,4,4,0,4,0,0,0};
     int* c_ids = grid.copy_ids();
     for (int i = 0; i < 15; i++)
         assert(t_ids[i] == c_ids[i]);
@@ -760,17 +774,17 @@ void test()
     grid.show();
     show_scores(users, scores, num_users, alpha);
 
-    grid.push(3, 4);
-    assert(-1 == grid.swap(3,1));
-    assert(0 == grid.swap(1,4));
-    assert(0 == grid.swap(2,3));
+   // grid.push(3, 4);
+   // assert(-1 == grid.swap(3,1));
+   // assert(0 == grid.swap(1,4));
+   // assert(0 == grid.swap(2,3));
 
-    delete c_ids;
-    c_ids = grid.copy_ids();
-    assert(c_ids[7] == 4);
-    assert(c_ids[14] == 1);
-    assert(c_ids[5] == 2);
-    assert(c_ids[6] == 3);
+   // delete c_ids;
+   // c_ids = grid.copy_ids();
+   // assert(c_ids[7] == 4);
+   // assert(c_ids[14] == 1);
+   // assert(c_ids[5] == 2);
+   // assert(c_ids[6] == 3);
 
     delete [] speed_matrix;
     delete [] speed_map;

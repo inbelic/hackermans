@@ -1,13 +1,13 @@
 #!/bin/bash
 
-compute_solution()
+compute_old_solution()
 {
-    ./hackermans test_cases/tc$1.csv > solns/$1.csv
+    ./hackermans old_test_cases/tc$1.csv > solns/$1.csv
 }
 
-for i in 1 2 3 4 5 6 7 8 9 10
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13
 do
-   compute_solution $i
+   compute_old_solution $i
 done
 
 rm submission.zip
