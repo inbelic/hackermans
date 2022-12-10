@@ -6,6 +6,9 @@
 
 #define TESTING 0
 
+int m, n, alpha, s, num_users;
+int* speed_map;
+
 // We first define our two data structures Grid and User
 typedef struct User {
     int speed;
@@ -13,6 +16,8 @@ typedef struct User {
     int factor;
     int weight;
 } User;
+
+User** users;
 
 typedef struct Score {
     double speed;
@@ -26,9 +31,6 @@ int flr(double speed) {
 class Grid {
    private:
     // Private variables
-    int m;
-    int n;
-    int alpha;
     int* ids;
 
     // Private helper functions
@@ -101,11 +103,10 @@ class Grid {
     }
 
    public:
+    double* speed_matrix;
+
     // (De)Constructors
-    Grid(int* header) {
-        m = header[0];
-        n = header[1];
-        alpha = header[3];
+    Grid() : speed_matrix(new double[s]) {
         ids = new int[m * n];
         for (int i = 0; i < m * n; i++)
             ids[i] = 0;
@@ -132,7 +133,7 @@ class Grid {
         return cur;
     }
 
-    int comp_col_data(int* data, double* speed_matrix, int col, int* speed_map) {
+    int comp_col_data(int* data, int col) {
         int ttl_data = 0;
         int start = col * m;
         int cur, id;
@@ -212,7 +213,7 @@ class Grid {
         return 0;
     }
 
-    void speed_col(User** users, double* speed_matrix, int col) {
+    void speed_col(int col) {
         int start = col * m;
         int* cur_col = ids + start;
         for (int i = 0; i < m; i++)
@@ -239,14 +240,13 @@ class Grid {
         }
     }
 
-    void compute_speeds(User** users, int num_users, double* speed_matrix) {
+    void compute_speeds() {
         for (int col = 0; col < n; col++)
-            speed_col(users, speed_matrix, col);
+            speed_col(col);
     }
 
     // generally called after compute_speeds
-    void mk_scores(Score** scores, int num_users, double* speed_matrix,
-                   int* speed_map) {
+    void mk_scores(Score** scores) {
         int tally[num_users];
         for (int i = 0; i < num_users; i++) {
             scores[i]->speed = 0.0;
@@ -337,7 +337,7 @@ void load_header(int* header, const char* fname) {
 
 // call load_header first to determine the right allocation size of
 // users
-void load_users(User** users, int num_users, const char* fname) {
+void load_users(const char* fname) {
     std::fstream fs;
     fs.open(fname, std::fstream::in);
     int cur;
@@ -402,7 +402,7 @@ void load_speed2bw(const char* fname, int* s2bw_map, int map_size) {
     fs.close();
 }
 
-void show_scores(User** users, Score** scores, int num_users, int alpha) {
+void show_scores(Score** scores) {
     int max_speed = 0;
     int max_data = 0;
     double objective = 0.0;
@@ -433,14 +433,11 @@ void show_scores(User** users, Score** scores, int num_users, int alpha) {
 }
 
 void test();
-void fill(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
-void trim(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
-void swap(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
+void fill(Grid& grid);
+void trim(Grid& grid);
+void swap(Grid& grid);
 
-bool feasible(User** users, Score** scores, int num_users) {
+bool feasible(Score** scores) {
     double penalty = 0.0;
     for (int i = 0; i < num_users; i++) {
         penalty += std::max((double)0.0,
@@ -462,23 +459,22 @@ int main(int argc, char** args) {
     const char* fn = args[1];
     int header[4];
     load_header(header, fn);
-    int m = header[0];
-    int n = header[1];
-    int num_users = header[2];
-    int alpha = header[3];
-    int s = n * m;
-    double* speed_matrix = new double[s];
+    m = header[0];
+    n = header[1];
+    num_users = header[2];
+    alpha = header[3];
+    s = n * m;
 
-    User* users[num_users];
+    users = new User*[num_users];
     for (int i = 0; i < num_users; i++)
         users[i] = new User;
 
-    load_users(users, num_users, fn);
+    load_users(fn);
 
-    Grid grid = Grid(header);
+    Grid grid = Grid();
 
     const int map_size = 27;
-    int* speed_map = new int[map_size];
+    speed_map = new int[map_size];
     load_speed2bw("toy_example/speed_to_map.csv", speed_map, map_size);
 
     Score* scores[num_users];
@@ -487,25 +483,22 @@ int main(int argc, char** args) {
 
     int max_recur = 1;
     while (true) {
-        fill(users, num_users, grid, speed_matrix, speed_map);
-        trim(users, num_users, grid, speed_matrix, speed_map);
-        grid.compute_speeds(users, num_users, speed_matrix);
-        grid.mk_scores(scores, num_users, speed_matrix, speed_map);
-        if (feasible(users, scores, num_users)) break;
+        fill(grid);
+        trim(grid);
+        grid.compute_speeds();
+        grid.mk_scores(scores);
+        if (feasible(scores)) break;
         max_recur--;
         if (max_recur < 0) break;
 
-        swap(users, num_users, grid, speed_matrix, speed_map);
+        swap(grid);
     }
 
     grid.show();
-    show_scores(users, scores, num_users, alpha);
+    show_scores(scores);
 
     std::cout << (int)(1000 * ((double)clock() - start) / CLOCKS_PER_SEC) << std::endl;
 
-    for (int i = 0; i < num_users; i++)
-        delete users[i];
-    delete[] speed_map;
     return 0;
 }
 
@@ -523,8 +516,7 @@ int get_most_data(int* used, int* data, int num_users) {
     return user_idx;
 }
 
-void fill(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void fill(Grid& grid) {
     int m = grid.get_m();
     int n = grid.get_n();
     double cur, prev;
@@ -536,15 +528,15 @@ void fill(User** users, int num_users, Grid& grid,
         scores[i] = new Score;
 
     for (int col = 0; col < n; col++) {
-        grid.compute_speeds(users, num_users, speed_matrix);
-        grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+        grid.compute_speeds();
+        grid.mk_scores(scores);
         for (int i = 0; i < num_users; i++) {
             used[i] = 0;
             data[i] = users[i]->data - scores[i]->data;
         }
         row = grid.get_used(used, col);
-        grid.speed_col(users, speed_matrix, col);
-        cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
+        grid.speed_col(col);
+        cur = grid.comp_col_data(data, col);
         for (int i = 0; i < num_users; i++) {
             prev = cur;
             // the column is full
@@ -560,8 +552,8 @@ void fill(User** users, int num_users, Grid& grid,
             grid.push(nxt_user + 1, col);
 
             // update speeds
-            grid.speed_col(users, speed_matrix, col);
-            cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
+            grid.speed_col(col);
+            cur = grid.comp_col_data(data, col);
             if (cur < prev) {
                 cur = prev;
                 grid.pop(col);
@@ -570,14 +562,13 @@ void fill(User** users, int num_users, Grid& grid,
     }
 }
 
-void trim(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void trim(Grid& grid) {
     Score* scores[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds();
+    grid.mk_scores(scores);
 
     int col, data;
     double avg_speed;
@@ -612,16 +603,15 @@ int get_most_excess(int* used, int* data, int num_users) {
     return user_idx;
 }
 
-void swap(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void swap(Grid& grid) {
     Score* scores[num_users];
     int used[num_users];
     int data[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds();
+    grid.mk_scores(scores);
 
     for (int i = 0; i < num_users; i++) {
         used[i] = 0;
@@ -643,21 +633,21 @@ void test() {
     std::cout << "starting test..." << std::endl;
     int header[4];
     load_header(header, "toy_example/toy_testcase.csv");
-    int m = header[0];
-    int n = header[1];
-    int num_users = header[2];
-    int alpha = header[3];
-    int s = n * m;
+    m = header[0];
+    n = header[1];
+    num_users = header[2];
+    alpha = header[3];
+    s = n * m;
     assert(m == 3);
     assert(n == 5);
     assert(num_users == 4);
     assert(alpha == 100);
 
-    User* users[num_users];
+    users = new User*[num_users];
     for (int i = 0; i < num_users; i++)
         users[i] = new User;
 
-    load_users(users, num_users, "toy_example/toy_testcase.csv");
+    load_users("toy_example/toy_testcase.csv");
 
     assert(users[0]->speed == 20);
     assert(users[0]->data == 4000);
@@ -679,7 +669,7 @@ void test() {
     assert(users[3]->factor == 40);
     assert(users[3]->weight == 3);
 
-    Grid grid = Grid(header);
+    Grid grid = Grid();
     grid.push(3, 0);
     grid.push(4, 0);
     grid.push(1, 1);
@@ -702,16 +692,15 @@ void test() {
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int* speed_map = new int[map_size];
+    speed_map = new int[map_size];
     load_speed2bw("toy_example/speed_to_map.csv", speed_map, map_size);
     for (int i = 0; i < map_size; i++)
         assert(speed_map[i] == t_sm[i]);
 
-    double* speed_matrix = new double[s];
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds();
+    grid.mk_scores(scores);
     grid.show();
-    show_scores(users, scores, num_users, alpha);
+    show_scores(scores);
 
     // grid.push(3, 4);
     // assert(-1 == grid.swap(3,1));
@@ -725,7 +714,6 @@ void test() {
     // assert(c_ids[5] == 2);
     // assert(c_ids[6] == 3);
 
-    delete[] speed_matrix;
     delete[] speed_map;
     delete c_ids;
     for (int i = 0; i < num_users; i++) {
