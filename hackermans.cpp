@@ -185,13 +185,15 @@ class Grid {
         if (cur == m)
             return -1;
 
-        return start + cur;
+        return cur;
     }
 
     // Swap user1 in col1 with user2 in col2
     int swap_user(int user1, int user2, int col1, int col2) {
-        int uid1 = find_user_in_col(user1, col1);
-        int uid2 = find_user_in_col(user2, col2);
+        int start1 = col1 * m;
+        int start2 = col2 * m;
+        int uid1 = start1 + find_user_in_col(user1, col1);
+        int uid2 = start2 + find_user_in_col(user2, col2);
 
         if (uid1 == -1 || uid2 == -1)
             return -1;
@@ -419,8 +421,12 @@ void show_scores(Score** scores) {
     objective /= max_speed;
     penalty /= (double)max_data;
     for (int i = 0; i < num_users; i++) {
+#if TESTING
+        pen = users[i]->data - scores[i]->data;
+#else
         pen = std::max((double)0.0,
                        (double)users[i]->data - scores[i]->data);
+#endif
         std::cout << pen << ",";
     }
     std::cout << penalty << std::endl;
@@ -434,7 +440,8 @@ void show_scores(Score** scores) {
 
 void test();
 void fill(Grid& grid);
-void trim(Grid& grid);
+void force_fill(Grid& grid);
+int trim(Grid& grid);
 void swap(Grid& grid);
 
 bool feasible(Score** scores) {
@@ -481,17 +488,23 @@ int main(int argc, char** args) {
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int max_recur = 1;
-    while (true) {
-        fill(grid);
-        trim(grid);
+    int ret;
+    int max_recur = 5;
+    fill(grid);
+    while (true)
+    {
         grid.compute_speeds();
         grid.mk_scores(scores);
         if (feasible(scores)) break;
-        max_recur--;
-        if (max_recur < 0) break;
-
+        if (max_recur == 0) break;
+        do
+        {
+            ret = trim(grid);
+        } while (ret);
         swap(grid);
+        fill(grid);
+
+        max_recur--;
     }
 
     grid.show();
@@ -508,6 +521,20 @@ int get_most_data(int* used, int* data, int num_users) {
     for (int i = 0; i < num_users; i++) {
         if (used[i] == 0 && (data[i] > most_data)) {
             most_data = data[i];
+            user_idx = i;
+        }
+    }
+    if (user_idx != -1)
+        used[user_idx] = 1;
+    return user_idx;
+}
+
+int get_least_data(int* used, int* data, int num_users) {
+    int least_data = 10000;
+    int user_idx = -1;
+    for (int i = 0; i < num_users; i++) {
+        if (used[i] == 0 && (data[i] < least_data) && (data[i] > 0)) {
+            least_data = data[i];
             user_idx = i;
         }
     }
@@ -562,7 +589,7 @@ void fill(Grid& grid) {
     }
 }
 
-void trim(Grid& grid) {
+int trim(Grid& grid) {
     Score* scores[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
@@ -570,23 +597,41 @@ void trim(Grid& grid) {
     grid.compute_speeds();
     grid.mk_scores(scores);
 
-    int col, data;
-    double avg_speed;
+    int col, row, data;
+    int ret = 0;
+    double speed;
     for (int usr = 0; usr < num_users; usr++) {
         col = -1;
         data = users[usr]->data - scores[usr]->data;
-        avg_speed = scores[usr]->speed;
+#if TESTING
+        std::cout << usr << ": " << data << std::endl;
+#endif
         while (data < 0) {
             col = grid.worst(usr + 1);
+            row = grid.find_user_in_col(usr + 1, col);
             if (col != -1)
+            {
                 grid.remove_user(usr + 1, col);
+                ret++;
+            }
             else
                 break;
-            data += speed_map[flr(avg_speed)];
+            grid.speed_col(col);
+            speed = grid.speed_matrix[col * m + row];
+
+            data += speed_map[flr(speed)];
+#if TESTING
+            std::cout << "trimmed " << usr << "(" << col << ", " << row << ") : ";
+            std::cout << speed << " -> " << data << std::endl;
+#endif
         }
         if (col != -1)
+        {
             grid.push(usr + 1, col);
+            ret--;
+        }
     }
+    return ret;
 }
 
 int get_most_excess(int* used, int* data, int num_users) {
@@ -622,10 +667,45 @@ void swap(Grid& grid) {
 
     while (true) {
         user_id_e = get_most_excess(used, data, num_users);
-        user_id_l = get_most_data(used, data, num_users);
+        user_id_l = get_least_data(used, data, num_users);
         if (user_id_e == -1 || user_id_l == -1)
             break;
         grid.swap(user_id_e, user_id_l);
+    }
+}
+
+void force_fill(Grid& grid) {
+    int m = grid.get_m();
+    int n = grid.get_n();
+    int nxt_user, row;
+    int used[num_users];
+    int data[num_users];
+    Score* scores[num_users];
+    for (int i = 0; i < num_users; i++)
+        scores[i] = new Score;
+
+    for (int col = 0; col < n; col++) {
+        grid.compute_speeds();
+        grid.mk_scores(scores);
+        for (int i = 0; i < num_users; i++) {
+            used[i] = 0;
+            data[i] = users[i]->data - scores[i]->data;
+        }
+        row = grid.get_used(used, col);
+        grid.speed_col(col);
+        for (int i = 0; i < num_users; i++) {
+            // the column is full
+            if (row == m)
+                break;
+            row++;
+
+            // determine next user (or lack thereof)
+            nxt_user = get_most_data(used, data, num_users);
+            if (nxt_user == -1)
+                break;
+
+            grid.push(nxt_user + 1, col);
+        }
     }
 }
 
