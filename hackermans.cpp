@@ -158,6 +158,10 @@ class Grid {
         return place_user(0, col, row - 1);
     }
 
+    int get_user(int col, int row) {
+        return ids[col * m + row];
+    }
+
     int remove_user(int user_id, int col) {
         int start = col * m;
         int cur = 0;
@@ -213,6 +217,12 @@ class Grid {
 
         swap_user(user_id_e, user_id_l, best_col, worst_col);
         return 0;
+    }
+
+    int move(int user_id, int from, int to) {
+        if (remove_user(user_id, from) == -1)
+            return -1;
+        return push(user_id, to);
     }
 
     void speed_col(int col) {
@@ -283,6 +293,21 @@ class Grid {
                 new_ids[row * n + col] = ids[col * m + row];
 
         return new_ids;
+    }
+
+    int first_appearance(int user_id)
+    {
+        for (int col = 0; col < n; col++)
+            for (int row = 0; row < m; row++)
+                if (ids[col * m + row] == user_id) return col;
+        return -1;
+    }
+
+    int first_without(int user_id, int start)
+    {
+        for (int col = start + 1; col < n; col++)
+            if (excluded(user_id, col)) return col;
+        return -1;
     }
 
     void show() {
@@ -440,6 +465,7 @@ void show_scores(Score** scores) {
 
 void test();
 void fill(Grid& grid);
+void move(Grid& grid);
 void force_fill(Grid& grid);
 int trim(Grid& grid);
 void swap(Grid& grid);
@@ -489,22 +515,21 @@ int main(int argc, char** args) {
         scores[i] = new Score;
 
     int ret;
-    int max_recur = 5;
-    fill(grid);
+    int iter = 1;
     while (true)
     {
+        fill(grid);
         grid.compute_speeds();
         grid.mk_scores(scores);
         if (feasible(scores)) break;
-        if (max_recur == 0) break;
+        if (iter == 0) break;
+        swap(grid);
         do
         {
             ret = trim(grid);
         } while (ret);
-        swap(grid);
-        fill(grid);
 
-        max_recur--;
+        iter--;
     }
 
     grid.show();
@@ -673,6 +698,50 @@ void swap(Grid& grid) {
         grid.swap(user_id_e, user_id_l);
     }
 }
+
+int get_most_flexible(int* used, Score** scores, int num_users)
+{
+    double lowest_ratio = 1.;
+    int user_idx = -1;
+    double flex_ratio;
+    for (int i = 0; i < num_users; i++) {
+        flex_ratio = scores[i]->speed / users[i]->speed;
+        if (used[i] == 0 && (flex_ratio < lowest_ratio)) {
+            lowest_ratio = flex_ratio;
+            user_idx = i;
+        }
+    }
+    if (user_idx != -1)
+        used[user_idx] = 1;
+    return user_idx;
+}
+
+void move(Grid& grid) {
+    Score* scores[num_users];
+    int used[num_users];
+    int from, to, nxt_user;
+    for (int i = 0; i < num_users; i++)
+        scores[i] = new Score;
+
+    grid.compute_speeds();
+    grid.mk_scores(scores);
+
+    for (int i = 0; i < num_users; i++)
+        used[i] = 0;
+
+    while (true) {
+        nxt_user = get_most_flexible(used, scores, num_users);
+        from = grid.first_appearance(nxt_user + 1);
+        to = grid.first_without(nxt_user + 1, from);
+#if TESTING
+        std::cout << nxt_user + 1 << ": " << from << " :-> " << to << std::endl;
+#endif
+        if (nxt_user == -1 || from == -1 || to == -1)
+            break;
+        grid.move(nxt_user + 1, from, to);
+    }
+}
+
 
 void force_fill(Grid& grid) {
     int m = grid.get_m();
