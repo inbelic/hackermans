@@ -50,18 +50,11 @@ class Grid {
         return cur;
     }
 
-    int excluded(int user_id, int col) {
-        int start = col * m;
-        for (int cur = 0; cur < m; cur++)
-            if (ids[start + cur] == user_id)
-                return 0;
-        return 1;
-    }
-
     int length(int user_id, int col) {
         int start = col * m;
         int cur = 0;
         int within = 0;
+        if (user_id == -1) within = 1;
         while (ids[start + cur] != 0 && cur < m) {
             if (ids[start + cur] == user_id)
                 within = 1;
@@ -146,6 +139,24 @@ class Grid {
             ttl_data += cur;
         }
         return ttl_data;
+    }
+
+    int sum_col(int col) {
+        int ttl_speed = 0;
+        int start = col * m;
+        for (int i = 0; i < m; i++) {
+            ttl_speed += speed_matrix[start + i];
+        }
+        return ttl_speed;
+    }
+
+
+    int excluded(int user_id, int col) {
+        int start = col * m;
+        for (int cur = 0; cur < m; cur++)
+            if (ids[start + cur] == user_id)
+                return 0;
+        return 1;
     }
 
     int push(int user_id, int col) {
@@ -295,18 +306,11 @@ class Grid {
         return new_ids;
     }
 
-    int first_appearance(int user_id)
+    int first_best(int user_id, int start)
     {
-        for (int col = 0; col < n; col++)
-            for (int row = 0; row < m; row++)
-                if (ids[col * m + row] == user_id) return col;
-        return -1;
-    }
-
-    int first_without(int user_id, int start)
-    {
+        int count = length(-1, start);
         for (int col = start + 1; col < n; col++)
-            if (excluded(user_id, col)) return col;
+            if (excluded(user_id, col) && length(-1, col) < count) return col;
         return -1;
     }
 
@@ -524,6 +528,7 @@ int main(int argc, char** args) {
         if (feasible(scores)) break;
         if (iter == 0) break;
         swap(grid);
+        move(grid);
         do
         {
             ret = trim(grid);
@@ -719,7 +724,8 @@ int get_most_flexible(int* used, Score** scores, int num_users)
 void move(Grid& grid) {
     Score* scores[num_users];
     int used[num_users];
-    int from, to, nxt_user;
+    int from, nxt_user;
+    double cur, prev;
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
@@ -731,14 +737,25 @@ void move(Grid& grid) {
 
     while (true) {
         nxt_user = get_most_flexible(used, scores, num_users);
-        from = grid.first_appearance(nxt_user + 1);
-        to = grid.first_without(nxt_user + 1, from);
-#if TESTING
-        std::cout << nxt_user + 1 << ": " << from << " :-> " << to << std::endl;
-#endif
-        if (nxt_user == -1 || from == -1 || to == -1)
+        from = grid.worst(nxt_user + 1);
+        if (nxt_user == -1 || from == -1)
             break;
-        grid.move(nxt_user + 1, from, to);
+
+        for (int to = from + 1; to < n; to++) {
+            if (grid.excluded(nxt_user + 1, to)) {
+                grid.speed_col(to);
+                cur = grid.sum_col(to);
+                grid.move(nxt_user + 1, from, to);
+                // update speeds
+                grid.speed_col(to);
+                cur = grid.sum_col(to);
+                if (cur < prev) {
+                    cur = prev;
+                    grid.move(nxt_user + 1, to, from);
+                }
+                else break;
+            }
+        }
     }
 }
 
