@@ -6,9 +6,11 @@ compute_solution()
 }
 
 rm solns/*
-for i in 1 2 3 4 5 6 7 8 9 10
+# for i in 1 2 3 4 5 6 7 8 9 10
+for i in 2
 do
-   compute_solution $i
+    echo "Case $i"
+    compute_solution $i
 done
 
 rm submission.zip

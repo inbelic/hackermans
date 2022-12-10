@@ -8,6 +8,7 @@
 #define PRINT_EXCESS 0
 
 double* speed_matrix;
+int num_users;
 
 // We first define our two data structures Grid and User
 typedef struct User {
@@ -16,6 +17,8 @@ typedef struct User {
     int factor;
     int weight;
 } User;
+
+User** users;
 
 typedef struct Score {
     double speed;
@@ -118,10 +121,6 @@ class Grid {
         return col;
     }
 
-    // Remove all users, which has a value of 0
-    void remove_zeroes() {
-    }
-
    public:
     // (De)Constructors
     Grid(int* header) {
@@ -135,6 +134,26 @@ class Grid {
 
     ~Grid() {
         delete ids;
+    }
+
+    // Remove all users in columns where they have 0 in speed.
+    void remove_zeroes() {
+        for (int i = 0; i < n; i++) {
+            for (int j = m - 1; j >= 0; j--) {
+                int user = ids[i * m + j];
+                if (user <= 0)
+                    break;
+
+                int speed = speed_matrix[i * m + j];
+                if (speed <= 0) {
+                    // std::cerr << "Removing user: " << user << std::endl;
+                    remove_user(user, i);
+                    j--;
+                }
+            }
+
+            speed_col(users, i);
+        }
     }
 
     // Public function interface
@@ -240,6 +259,8 @@ class Grid {
         for (int i = 0; i < m; i++)
             speed_matrix[start + i] = 0.0;
 
+        // If we remove this guy, how much total data gain do other users get?
+
         int row, id;
         int total_factor = 0;
         double dep;
@@ -321,13 +342,34 @@ class Grid {
         }
     }
 
+    double get_column_factor(int user_id, int col) {
+        int start = col * m;
+        int cur = 0;
+        int within = 0;
+        while (ids[start + cur] != 0 && cur < m) {
+            if (ids[start + cur] == user_id)
+                within = 1;
+            cur++;
+        }
+        return cur * within;
+    }
+
+    // Get the column in which removing this user would lead to the most data gain
     int worst(int user_id) {
-        // get column with the most users or -1 if none
         int score = 0;
         int col = -1;
-        int count;
+        double count = 0;  // How much gain did we get
         for (int i = 0; i < n; i++) {
+            // if(find_user_in_col(user_id, i) == -1)
+            //     continue;
+
             count = length(user_id, i);
+            // count = -get_user_speed(user_id, i);
+
+            // Loop through every user in the column, except for the current user.
+            // Sum the useful gain if we were to remove user_id
+            // int start = col * m;
+
             if (count > score) {
                 score = count;
                 col = i;
@@ -488,11 +530,11 @@ int main(int argc, char** args) {
     load_header(header, fn);
     int m = header[0];
     int n = header[1];
-    int num_users = header[2];
+    num_users = header[2];
     int alpha = header[3];
     int s = n * m;
 
-    User* users[num_users];
+    users = new User*[num_users];
     for (int i = 0; i < num_users; i++)
         users[i] = new User;
 
@@ -509,19 +551,53 @@ int main(int argc, char** args) {
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    int max_recur = 1;
-    while (true) {
-        fill(users, num_users, grid, speed_map);
-        trim(users, num_users, grid, speed_map);
+    // fill(users, num_users, grid, speed_map);
+    // grid.compute_speeds(users, num_users);
+    // grid.mk_scores(scores, num_users, speed_map);
+    // while (clock() - start <= 700000) {
+    //     if (feasible(users, scores, num_users))
+    //         break;
+
+    //     opt(grid, speed_map);
+    // }
+
+    int max_recur = 5;
+    while (clock() - start <= 700000) {
+        for(int u = 0; u < n; u++) {
+            grid.remove_user(u + 1, n);
+        }
+
         grid.compute_speeds(users, num_users);
         grid.mk_scores(scores, num_users, speed_map);
-        if (feasible(users, scores, num_users)) break;
-        max_recur--;
-        if (max_recur < 0) break;
 
-        swap(users, num_users, grid, speed_map);
+        fill(users, num_users, grid, speed_map);
+
+        grid.compute_speeds(users, num_users);
+        grid.mk_scores(scores, num_users, speed_map);
+
+        trim(users, num_users, grid, speed_map);
+
+        grid.compute_speeds(users, num_users);
+        grid.mk_scores(scores, num_users, speed_map);
+
+        grid.remove_zeroes();
+
+        grid.compute_speeds(users, num_users);
+        grid.mk_scores(scores, num_users, speed_map);
+
+        if (feasible(users, scores, num_users))
+            break;
+
+        // swap(users, num_users, grid, speed_map);
     }
 
+    grid.compute_speeds(users, num_users);
+    grid.mk_scores(scores, num_users, speed_map);
+
+    fill(users, num_users, grid, speed_map);
+
+    grid.compute_speeds(users, num_users);
+    grid.mk_scores(scores, num_users, speed_map);
     grid.show();
     show_scores(users, scores, num_users, alpha);
 
@@ -609,11 +685,14 @@ void trim(User** users, int num_users, Grid& grid, int* speed_map) {
         avg_speed = scores[usr]->speed;
         while (data < 0) {
             col = grid.worst(usr + 1);
-            if (col != -1)
-                grid.remove_user(usr + 1, col);
-            else
+            if (col == -1)
                 break;
+            grid.remove_user(usr + 1, col);
+            int old_data = data;
             data += speed_map[flr(avg_speed)];
+            // std::cerr << "We did trim, data diff: " << old_data << ", " << data << '\n';
+            // grid.compute_speeds(users, num_users);
+            // grid.mk_scores(scores, num_users, speed_map);
         }
         if (col != -1)
             grid.push(usr + 1, col);
@@ -675,7 +754,7 @@ void test() {
     assert(num_users == 4);
     assert(alpha == 100);
 
-    User* users[num_users];
+    users = new User*[num_users];
     for (int i = 0; i < num_users; i++)
         users[i] = new User;
 
