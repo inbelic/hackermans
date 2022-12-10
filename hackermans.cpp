@@ -519,12 +519,11 @@ int main(int argc, char** args) {
         scores[i] = new Score;
 
     int ret;
-    int iter = 1;
+    int iter = 5;
+    trim(grid);
     while (true)
     {
         fill(grid);
-        grid.compute_speeds();
-        grid.mk_scores(scores);
         if (feasible(scores)) break;
         if (iter == 0) break;
         swap(grid);
@@ -537,6 +536,8 @@ int main(int argc, char** args) {
         iter--;
     }
 
+    grid.compute_speeds();
+    grid.mk_scores(scores);
     grid.show();
     show_scores(scores);
 
@@ -724,8 +725,8 @@ int get_most_flexible(int* used, Score** scores, int num_users)
 void move(Grid& grid) {
     Score* scores[num_users];
     int used[num_users];
-    int from, nxt_user;
-    double cur, prev;
+    int from, nxt_user, best_col;
+    double cur, prev, best_diff;
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
@@ -738,24 +739,30 @@ void move(Grid& grid) {
     while (true) {
         nxt_user = get_most_flexible(used, scores, num_users);
         from = grid.worst(nxt_user + 1);
+        best_diff = 0.;
+        best_col = -1;
         if (nxt_user == -1 || from == -1)
             break;
 
         for (int to = from + 1; to < n; to++) {
             if (grid.excluded(nxt_user + 1, to)) {
                 grid.speed_col(to);
-                cur = grid.sum_col(to);
+                prev = grid.sum_col(to);
                 grid.move(nxt_user + 1, from, to);
                 // update speeds
                 grid.speed_col(to);
                 cur = grid.sum_col(to);
-                if (cur < prev) {
-                    cur = prev;
-                    grid.move(nxt_user + 1, to, from);
+                grid.move(nxt_user + 1, to, from);
+                double diff = cur - prev;
+                if (best_diff < diff)
+                {
+                    best_diff = diff;
+                    best_col = to;
                 }
                 else break;
             }
         }
+        if (best_col != -1) grid.move(nxt_user + 1, from, best_col);
     }
 }
 
