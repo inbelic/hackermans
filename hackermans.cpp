@@ -5,7 +5,9 @@
 #include <iostream>
 
 #define TESTING 0
-#define PRINT_EXCESS 1
+#define PRINT_EXCESS 0
+
+double* speed_matrix;
 
 // We first define our two data structures Grid and User
 typedef struct User {
@@ -49,6 +51,7 @@ class Grid {
         return cur;
     }
 
+    // Return 0 if the user is inside the column, 1 otherwise
     int excluded(int user_id, int col) {
         int start = col * m;
         for (int cur = 0; cur < m; cur++)
@@ -57,6 +60,7 @@ class Grid {
         return 1;
     }
 
+    // If user `user_id` is inside column `col`, return the amount of users in the column. Otherwise 0.
     int length(int user_id, int col) {
         int start = col * m;
         int cur = 0;
@@ -69,13 +73,28 @@ class Grid {
         return cur * within;
     }
 
-    // get column with the least users or -1 if none
+    // Get the speed of the user `user_id` in column `col`, 0 if the user is not in the column.
+    double get_user_speed(int user_id, int col) {
+        int start = col * m;
+        int cur = 0;
+        // int within = 0;
+        while (ids[start + cur] != 0 && cur < m) {
+            if (ids[start + cur] == user_id) {
+                return speed_matrix[start + cur];
+            }
+            cur++;
+        }
+
+        return 0;
+    }
+
+    // Get column with the least user speed
     int best_without(int user_id, int o_user_id) {
         int score = n;
         int col = -1;
-        int count;
+        double count;
         for (int i = 0; i < n; i++) {
-            count = length(user_id, i);
+            count = get_user_speed(user_id, i);
             if (count < score && count > 0 && excluded(o_user_id, i)) {
                 score = count;
                 col = i;
@@ -84,21 +103,23 @@ class Grid {
         return col;
     }
 
+    // Get column with the most user speed
     int worst_without(int user_id, int o_user_id) {
-        // get column with the most users or -1 if none without o_user_id
         int score = 0;
         int col = -1;
-        int count;
-        int exc;
+        double count;
         for (int i = 0; i < n; i++) {
-            count = length(user_id, i);
-            exc = excluded(o_user_id, i);
-            if (count > score && exc > 0) {
+            count = get_user_speed(user_id, i);
+            if (count > score && excluded(o_user_id, i) > 0) {
                 score = count;
                 col = i;
             }
         }
         return col;
+    }
+
+    // Remove all users, which has a value of 0
+    void remove_zeroes() {
     }
 
    public:
@@ -133,7 +154,7 @@ class Grid {
         return cur;
     }
 
-    int comp_col_data(int* data, double* speed_matrix, int col, int* speed_map) {
+    int comp_col_data(int* data, int col, int* speed_map) {
         int ttl_data = 0;
         int start = col * m;
         int cur, id;
@@ -203,7 +224,7 @@ class Grid {
     }
 
     // swap the user_id_e with excess from its best col with user_id_l worst
-    int swap(int user_id_e, int user_id_l) {
+    int swap(double* speed_matrix, int user_id_e, int user_id_l) {
         int best_col = best_without(user_id_e, user_id_l);
         int worst_col = worst_without(user_id_l, user_id_e);
         if (best_col == -1 || worst_col == -1)
@@ -213,7 +234,7 @@ class Grid {
         return 0;
     }
 
-    void speed_col(User** users, double* speed_matrix, int col) {
+    void speed_col(User** users, int col) {
         int start = col * m;
         int* cur_col = ids + start;
         for (int i = 0; i < m; i++)
@@ -240,14 +261,13 @@ class Grid {
         }
     }
 
-    void compute_speeds(User** users, int num_users, double* speed_matrix) {
+    void compute_speeds(User** users, int num_users) {
         for (int col = 0; col < n; col++)
-            speed_col(users, speed_matrix, col);
+            speed_col(users, col);
     }
 
     // generally called after compute_speeds
-    void mk_scores(Score** scores, int num_users, double* speed_matrix,
-                   int* speed_map) {
+    void mk_scores(Score** scores, int num_users, int* speed_map) {
         int tally[num_users];
         for (int i = 0; i < num_users; i++) {
             scores[i]->speed = 0.0;
@@ -440,12 +460,9 @@ void show_scores(User** users, Score** scores, int num_users, int alpha) {
 }
 
 void test();
-void fill(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
-void trim(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
-void swap(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map);
+void fill(User** users, int num_users, Grid& grid, int* speed_map);
+void trim(User** users, int num_users, Grid& grid, int* speed_map);
+void swap(User** users, int num_users, Grid& grid, int* speed_map);
 
 bool feasible(User** users, Score** scores, int num_users) {
     double penalty = 0.0;
@@ -474,7 +491,6 @@ int main(int argc, char** args) {
     int num_users = header[2];
     int alpha = header[3];
     int s = n * m;
-    double* speed_matrix = new double[s];
 
     User* users[num_users];
     for (int i = 0; i < num_users; i++)
@@ -482,6 +498,7 @@ int main(int argc, char** args) {
 
     load_users(users, num_users, fn);
 
+    speed_matrix = new double[s];
     Grid grid = Grid(header);
 
     const int map_size = 27;
@@ -494,15 +511,15 @@ int main(int argc, char** args) {
 
     int max_recur = 1;
     while (true) {
-        fill(users, num_users, grid, speed_matrix, speed_map);
-        trim(users, num_users, grid, speed_matrix, speed_map);
-        grid.compute_speeds(users, num_users, speed_matrix);
-        grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+        fill(users, num_users, grid, speed_map);
+        trim(users, num_users, grid, speed_map);
+        grid.compute_speeds(users, num_users);
+        grid.mk_scores(scores, num_users, speed_map);
         if (feasible(users, scores, num_users)) break;
         max_recur--;
         if (max_recur < 0) break;
 
-        swap(users, num_users, grid, speed_matrix, speed_map);
+        swap(users, num_users, grid, speed_map);
     }
 
     grid.show();
@@ -530,8 +547,7 @@ int get_most_data(int* used, int* data, int num_users) {
     return user_idx;
 }
 
-void fill(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void fill(User** users, int num_users, Grid& grid, int* speed_map) {
     int m = grid.get_m();
     int n = grid.get_n();
     double cur, prev;
@@ -543,15 +559,15 @@ void fill(User** users, int num_users, Grid& grid,
         scores[i] = new Score;
 
     for (int col = 0; col < n; col++) {
-        grid.compute_speeds(users, num_users, speed_matrix);
-        grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+        grid.compute_speeds(users, num_users);
+        grid.mk_scores(scores, num_users, speed_map);
         for (int i = 0; i < num_users; i++) {
             used[i] = 0;
             data[i] = users[i]->data - scores[i]->data;
         }
         row = grid.get_used(used, col);
-        grid.speed_col(users, speed_matrix, col);
-        cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
+        grid.speed_col(users, col);
+        cur = grid.comp_col_data(data, col, speed_map);
         for (int i = 0; i < num_users; i++) {
             prev = cur;
             // the column is full
@@ -567,8 +583,8 @@ void fill(User** users, int num_users, Grid& grid,
             grid.push(nxt_user + 1, col);
 
             // update speeds
-            grid.speed_col(users, speed_matrix, col);
-            cur = grid.comp_col_data(data, speed_matrix, col, speed_map);
+            grid.speed_col(users, col);
+            cur = grid.comp_col_data(data, col, speed_map);
             if (cur < prev) {
                 cur = prev;
                 grid.pop(col);
@@ -577,14 +593,13 @@ void fill(User** users, int num_users, Grid& grid,
     }
 }
 
-void trim(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void trim(User** users, int num_users, Grid& grid, int* speed_map) {
     Score* scores[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds(users, num_users);
+    grid.mk_scores(scores, num_users, speed_map);
 
     int col, data;
     double avg_speed;
@@ -619,16 +634,15 @@ int get_most_excess(int* used, int* data, int num_users) {
     return user_idx;
 }
 
-void swap(User** users, int num_users, Grid& grid,
-          double* speed_matrix, int* speed_map) {
+void swap(User** users, int num_users, Grid& grid, int* speed_map) {
     Score* scores[num_users];
     int used[num_users];
     int data[num_users];
     for (int i = 0; i < num_users; i++)
         scores[i] = new Score;
 
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds(users, num_users);
+    grid.mk_scores(scores, num_users, speed_map);
 
     for (int i = 0; i < num_users; i++) {
         used[i] = 0;
@@ -643,7 +657,7 @@ void swap(User** users, int num_users, Grid& grid,
         if (user_id_e == -1 || user_id_l == -1)
             break;
 
-        grid.swap(user_id_e, user_id_l);
+        grid.swap(speed_matrix, user_id_e, user_id_l);
     }
 }
 
@@ -687,6 +701,7 @@ void test() {
     assert(users[3]->factor == 40);
     assert(users[3]->weight == 3);
 
+    speed_matrix = new double[s];
     Grid grid = Grid(header);
     grid.push(3, 0);
     grid.push(4, 0);
@@ -715,9 +730,8 @@ void test() {
     for (int i = 0; i < map_size; i++)
         assert(speed_map[i] == t_sm[i]);
 
-    double* speed_matrix = new double[s];
-    grid.compute_speeds(users, num_users, speed_matrix);
-    grid.mk_scores(scores, num_users, speed_matrix, speed_map);
+    grid.compute_speeds(users, num_users);
+    grid.mk_scores(scores, num_users, speed_map);
     grid.show();
     show_scores(users, scores, num_users, alpha);
 
@@ -733,7 +747,6 @@ void test() {
     // assert(c_ids[5] == 2);
     // assert(c_ids[6] == 3);
 
-    delete[] speed_matrix;
     delete[] speed_map;
     delete c_ids;
     for (int i = 0; i < num_users; i++) {
